@@ -1,0 +1,56 @@
+﻿{
+  "Env": [
+    {
+      "Name": "北京阿里云",
+      "ServerList": [
+        {
+          "Token": "AFFC51F880BB48BB8565752A0F4DD371",
+          "Host": "39.107.109.240:8172",
+          "NickName": "",
+          "IIsFireUrl": null,
+          "DockerFireUrl": null,
+          "WindowsServiceFireUrl": ""
+        }
+      ],
+      "LinuxServerList": [],
+      "IgnoreList": [],
+      "WindowsBackUpIgnoreList": []
+    }
+  ],
+  "IIsConfig": {
+    "SdkType": null,
+    "WebSiteName": "",
+    "LastEnvName": null,
+    "EnvPairList": [
+      {
+        "EnvName": "北京阿里云",
+        "ConfigName": "",
+        "DockerPort": null,
+        "DockerEnvName": null,
+        "DockerVolume": null
+      }
+    ]
+  },
+  "WindowsServiveConfig": {
+    "ServiceName": "hangfire",
+    "SdkType": "netcore",
+    "LastEnvName": "北京阿里云",
+    "EnvPairList": [
+      {
+        "EnvName": "北京阿里云",
+        "ConfigName": "hangfire",
+        "DockerPort": null,
+        "DockerEnvName": null,
+        "DockerVolume": null
+      }
+    ]
+  },
+  "DockerConfig": {
+    "Prot": "",
+    "AspNetCoreEnv": "",
+    "LastEnvName": null,
+    "RemoveDaysFromPublished": "10",
+    "Volume": "",
+    "EnvPairList": []
+  }
+}

@@ -37,7 +37,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Hangfire.HttpJob.Agent.Mssq
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestSqlserverHangfireAgent", "Test\TestSqlserverHangfireAgent\TestSqlserverHangfireAgent.csproj", "{D400915A-2630-4B50-9815-23EE49633BFD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hangfire.HttpJob.Agent.Test", "Test\Hangfire.HttpJob.Agent.Test\Hangfire.HttpJob.Agent.Test.csproj", "{12FB6931-E583-4A6C-9C18-30110E32E60F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Hangfire.HttpJob.Agent.Test", "Test\Hangfire.HttpJob.Agent.Test\Hangfire.HttpJob.Agent.Test.csproj", "{12FB6931-E583-4A6C-9C18-30110E32E60F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestMysqlWindowsService", "Test\TestMysqlWindowsService\TestMysqlWindowsService\TestMysqlWindowsService.csproj", "{AF44BCD5-B2DE-437D-A187-A050B773AD02}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -93,6 +95,10 @@ Global
 		{12FB6931-E583-4A6C-9C18-30110E32E60F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{12FB6931-E583-4A6C-9C18-30110E32E60F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{12FB6931-E583-4A6C-9C18-30110E32E60F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AF44BCD5-B2DE-437D-A187-A050B773AD02}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AF44BCD5-B2DE-437D-A187-A050B773AD02}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AF44BCD5-B2DE-437D-A187-A050B773AD02}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AF44BCD5-B2DE-437D-A187-A050B773AD02}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -112,6 +118,7 @@ Global
 		{BE7205C6-52AF-47DD-9175-6C798E2FD56F} = {E807D605-E7EA-4680-9269-879F2596A2D3}
 		{D400915A-2630-4B50-9815-23EE49633BFD} = {655E1B5A-EDAE-4C85-9553-55229B6254CE}
 		{12FB6931-E583-4A6C-9C18-30110E32E60F} = {6C712EFD-9B0C-431B-8B79-06177DF325BA}
+		{AF44BCD5-B2DE-437D-A187-A050B773AD02} = {F695ABD0-FE6D-4F25-852D-91DCCB410E82}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {A5F0048D-888D-47DA-8714-2283937235BC}
