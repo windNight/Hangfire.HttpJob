@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using System.Data;
 using Hangfire.Tags;
 using Hangfire.Tags.Mysql;
+using TimeZoneConverter;
 
 namespace TestHangfire
 {
@@ -67,7 +68,7 @@ namespace TestHangfire
                     },
                     DefaultRecurringQueueName = JsonConfig.GetSection("DefaultRecurringQueueName").Get<string>(),
                     DefaultBackGroundJobQueueName = "DEFAULT",
-                    RecurringJobTimeZone = TimeZoneInfo.Local,
+                    RecurringJobTimeZone =  TZConvert.GetTimeZoneInfo("Asia/Shanghai"),
                     // CheckHttpResponseStatusCode = code => (int)code < 400   //===》(default)
                 })
                 .UseTagsWithMysql(sqlOptions: mysqlOption);
