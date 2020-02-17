@@ -8,15 +8,25 @@ namespace Hangfire.HttpJob.Support
 {
     public class HttpStatusCodeException:Exception
     {
-        public HttpStatusCodeException(HttpStatusCode code):base($"{Strings.ResponseCode}:{code} ===> CheckResult: Fail ")
+        public string Msg  { get; set; }
+        public bool IsEl  { get; set; }
+        public string El  { get; set; }
+        public HttpStatusCodeException(HttpStatusCode code,string data):base($"{Strings.ResponseCode}:{code} ===> CheckResult: Fail ")
         {
-            
+            Msg = data;
+        }
+
+        public HttpStatusCodeException(string el, string data) : base($"{Strings.CallbackELExcuteError}:{el} ===> CheckResult: Fail ")
+        {
+            IsEl = true;
+            El = el;
+            Msg = data;
         }
     }
     
-    public class ChildJobException:Exception
+    public class CallbackJobException:Exception
     {
-        public ChildJobException(string code):base($"ChildJob Fail ===> {code} ")
+        public CallbackJobException(string code):base($"{Strings.CallbackFail} ===> {code} ")
         {
             
         }

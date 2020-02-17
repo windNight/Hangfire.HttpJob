@@ -24,6 +24,11 @@ namespace Hangfire.HttpJob
         public string DefaultRecurringQueueName { get; set; }
 
         /// <summary>
+        /// 全局默认的配置文件
+        /// </summary>
+        public string GlobalSettingJsonFilePath { get; set; } 
+
+        /// <summary>
         /// 设置默认的执行周期性job的queue名称
         /// </summary>
         public string DefaultBackGroundJobQueueName { get; set; } = EnqueuedState.DefaultQueue;
@@ -47,7 +52,7 @@ namespace Hangfire.HttpJob
         /// 检查HttpResponseStatusCode
         ///  如果不指定 < 400 = error
         /// </summary>
-        public Func<HttpStatusCode, bool> CheckHttpResponseStatusCode;
+        public Func<HttpStatusCode,string, bool> CheckHttpResponseStatusCode;
 
 
         #region 按钮名称和标题等自定义展示名称
@@ -69,6 +74,7 @@ namespace Hangfire.HttpJob
         /// cron表达式按钮名称
         /// </summary>
         public string AddCronButtonName { get; set; } = Strings.AddCronButtonName;
+        public string GobalSettingButtonName { get; set; } = Strings.GobalSettingButtonName;
 
         public string PauseJobButtonName { get; set; } = Strings.PauseJobButtonName;
 

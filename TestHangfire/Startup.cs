@@ -15,7 +15,7 @@ using System.Collections.Generic;
 using System.Data;
 using Hangfire.Tags;
 using Hangfire.Tags.Mysql;
-using TimeZoneConverter;
+using Newtonsoft.Json;
 
 namespace TestHangfire
 {
@@ -68,7 +68,7 @@ namespace TestHangfire
                     },
                     DefaultRecurringQueueName = JsonConfig.GetSection("DefaultRecurringQueueName").Get<string>(),
                     DefaultBackGroundJobQueueName = "DEFAULT",
-                    RecurringJobTimeZone =  TZConvert.GetTimeZoneInfo("Asia/Shanghai"),
+                    RecurringJobTimeZone = TimeZoneInfo.Local,
                     // CheckHttpResponseStatusCode = code => (int)code < 400   //===》(default)
                 })
                 .UseTagsWithMysql(sqlOptions: mysqlOption);
@@ -153,7 +153,7 @@ namespace TestHangfire
             }
            
 
-            app.Run(async (context) => { await context.Response.WriteAsync("ok."); });
+            app.Run(async (context) => { await context.Response.WriteAsync(JsonConvert.SerializeObject(new { Success = false, Info = "ok" })); });
         }
     }
 }

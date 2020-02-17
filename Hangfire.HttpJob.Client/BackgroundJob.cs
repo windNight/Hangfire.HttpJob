@@ -11,9 +11,9 @@ namespace Hangfire.HttpJob.Client
     /// <summary>
     /// 后台子Job
     /// </summary>
-    public class HttpChildJob
+    public class HttpCallbackJob
     {
-        public HttpChildJob()
+        public HttpCallbackJob()
         {
             Method = "Post";
             ContentType = "application/json";
@@ -59,15 +59,20 @@ namespace Hangfire.HttpJob.Client
         /// 代理设置
         /// </summary>
         public string AgentClass { get; set; }
-        
+
+        /// <summary>
+        /// 判断是否成功还是失败的EL表达式
+        /// </summary>
+        public string CallbackEL { get; set; }
+
         /// <summary>
         /// Header
         /// </summary>
         public Dictionary<string,string> Headers { get; set; } =new Dictionary<string, string>();
         
-        public HttpChildJob Success { get; set; }
+        public HttpCallbackJob Success { get; set; }
         
-        public HttpChildJob Fail { get; set; }
+        public HttpCallbackJob Fail { get; set; }
     }
     
     /// <summary>
@@ -164,13 +169,19 @@ namespace Hangfire.HttpJob.Client
         /// 代理设置
         /// </summary>
         public string AgentClass { get; set; }
-        
+
+        /// <summary>
+        /// 判断是否成功还是失败的EL表达式
+        /// </summary>
+        public string CallbackEL { get; set; }
+
+
         /// <summary>
         /// Header
         /// </summary>
         public Dictionary<string,string> Headers { get; set; } =new Dictionary<string, string>();
 
-        public HttpChildJob Success { get; set; }
-        public HttpChildJob Fail { get; set; }
+        public HttpCallbackJob Success { get; set; }
+        public HttpCallbackJob Fail { get; set; }
     }
 }

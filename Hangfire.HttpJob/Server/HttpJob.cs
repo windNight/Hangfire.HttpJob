@@ -7,6 +7,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Dynamic;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -15,6 +16,9 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text;
 using System.Threading;
+using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json.Linq;
+using Spring.Expressions;
 
 namespace Hangfire.HttpJob.Server
 {
@@ -24,6 +28,15 @@ namespace Hangfire.HttpJob.Server
 
         private static readonly ILog Logger = LogProvider.For<HttpJob>();
         public static HangfireHttpJobOptions HangfireHttpJobOptions;
+        /// <summary>
+        /// appsettions.json配置文件最后更新时间
+        /// </summary>
+        private static DateTime? _appJsonLastWriteTime;
+
+        /// <summary>
+        /// appsettions.json配置文件内容
+        /// </summary>
+        private static Dictionary<string, object> _appsettingsJson = new Dictionary<string, object>();
 
         #endregion
 
@@ -37,7 +50,7 @@ namespace Hangfire.HttpJob.Server
         /// <param name="queuename">指定queue名称(Note: Hangfire queue names need to be lower case)</param>
         /// <param name="isretry">是否http调用出错重试</param>
         /// <param name="context">上下文</param>
-        [AutomaticRetrySet(Attempts = 3, DelaysInSeconds = new[] {20, 30, 60}, LogEvents = true, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+        [AutomaticRetrySet(Attempts = 3, DelaysInSeconds = new[] { 20, 30, 60 }, LogEvents = true, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
         [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Fail)]
         [DisplayName("[{1} | {2} | Retry:{3}]")]
         [JobFilter(timeoutInSeconds: 3600)]
@@ -61,21 +74,31 @@ namespace Hangfire.HttpJob.Server
                 }
                 else
                 {
-                    SendFailMail(item, string.Join("<br/>", logList),null);
-                    result = false;
+                    SendFailMail(item, string.Join("<br/>", logList), null);
                 }
-               
+
             }
             catch (Exception ex)
             {
+                var statusCodeEx = ex as HttpStatusCodeException;
                 RunWithTry(() => context.SetTextColor(ConsoleTextColor.Red));
                 Logger.ErrorException("HttpJob.Excute=>" + item, ex);
-                RunWithTry(() => context.WriteLine(ex.ToString()));
+                if (statusCodeEx != null && statusCodeEx.IsEl)
+                {
+                    RunWithTry(() => context.WriteLine($"【{Strings.CallbackELExcuteResult}:Fail 】" + statusCodeEx.El));
+                }
+                else
+                {
+                    RunWithTry(() => context.WriteLine(ex.ToString()));
+                }
+
                 if (!item.EnableRetry)
                 {
                     if (item.Fail != null)
                     {
-                        if (Run(item.Fail, context, logList,item))
+                        item.Fail.CallbackRoot = item.JobName + ".Fail";
+                        item.Cron = statusCodeEx == null || string.IsNullOrEmpty(statusCodeEx.Msg) ? ex.Message : statusCodeEx.Msg;
+                        if (Run(item.Fail, context, logList, item))
                         {
                             SendSuccessMail(item, string.Join("<br/>", logList));
                             return;
@@ -92,7 +115,9 @@ namespace Hangfire.HttpJob.Server
                 {
                     if (item.Fail != null)
                     {
-                        if (Run(item.Fail, context, logList,item))
+                        item.Fail.CallbackRoot = item.JobName + ".Fail";
+                        item.Cron = statusCodeEx == null || string.IsNullOrEmpty(statusCodeEx.Msg) ? ex.Message : statusCodeEx.Msg;
+                        if (Run(item.Fail, context, logList, item))
                         {
                             SendSuccessMail(item, string.Join("<br/>", logList));
                             return;
@@ -111,7 +136,7 @@ namespace Hangfire.HttpJob.Server
 
             if (!result)
             {
-                throw new ChildJobException("Child job Fail");
+                throw new CallbackJobException("Callback job Fail");
             }
         }
 
@@ -127,23 +152,26 @@ namespace Hangfire.HttpJob.Server
         {
             try
             {
-                if (parentJob == null && item.Timeout < 1) item.Timeout = 5000;
                 if (parentJob != null)
                 {
                     RunWithTry(() => context.SetTextColor(ConsoleTextColor.Green));
-                    if(item.Timeout<1) item.Timeout = parentJob.Timeout;
-                    if(item.Data.Contains("@parent@")) item.Data = item.Data.Replace("@parent@",parentJob.Cron);
+                    if (item.Timeout < 1) item.Timeout = parentJob.Timeout;
+                    if (item.Data.Contains("@parent@")) item.Data = item.Data.Replace("@parent@", parentJob.Cron);
                     if (string.IsNullOrEmpty(item.BasicUserName)) item.BasicUserName = parentJob.BasicUserName;
                     if (string.IsNullOrEmpty(item.BasicPassword)) item.BasicPassword = parentJob.BasicPassword;
                     if (item.Headers == null || !item.Headers.Any()) item.Headers = parentJob.Headers;
                     if (string.IsNullOrEmpty(item.QueueName)) item.QueueName = parentJob.QueueName;
+                    RunWithTry(() => context.WriteLine($"【{Strings.CallbackStart}】[{item.CallbackRoot}]"));
+                    item.JobName = item.CallbackRoot;
                 }
                 else
                 {
+                    if (string.IsNullOrEmpty(item.CallbackRoot)) item.CallbackRoot = item.JobName;
+                    if (item.Timeout < 1) item.Timeout = 5000;
                     RunWithTry(() => context.SetTextColor(ConsoleTextColor.Yellow));
                 }
-                
-               
+
+
                 RunWithTry(() => context.WriteLine($"{Strings.JobStart}:{DateTime.Now:yyyy-MM-dd HH:mm:ss}"));
                 logList.Add($"{Strings.JobStart}:{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
                 RunWithTry(() =>
@@ -166,8 +194,8 @@ namespace Hangfire.HttpJob.Server
                     //per host per HttpClient
                     client = HangfireHttpClientFactory.Instance.GetHttpClient(item.Url);
                 }
-
-                var httpMesage = PrepareHttpRequestMessage(item, context);
+                
+                var httpMesage = PrepareHttpRequestMessage(item, context, parentJob);
                 var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(item.Timeout));
                 var httpResponse = client.SendAsync(httpMesage, cts.Token).ConfigureAwait(false).GetAwaiter().GetResult();
                 HttpContent content = httpResponse.Content;
@@ -176,24 +204,38 @@ namespace Hangfire.HttpJob.Server
                 logList.Add($"{Strings.ResponseCode}:{httpResponse.StatusCode}");
 
                 //检查HttpResponse StatusCode
-                if (HangfireHttpJobOptions.CheckHttpResponseStatusCode(httpResponse.StatusCode))
+                if (HangfireHttpJobOptions.CheckHttpResponseStatusCode(httpResponse.StatusCode, result))
                 {
                     RunWithTry(() => context.WriteLine($"{Strings.ResponseCode}:{httpResponse.StatusCode} ===> CheckResult: Ok "));
                     logList.Add($"{Strings.ResponseCode}:{httpResponse.StatusCode} ===> CheckResult: Ok ");
                 }
                 else
                 {
-                    throw new HttpStatusCodeException(httpResponse.StatusCode);
+                    throw new HttpStatusCodeException(httpResponse.StatusCode, result);
+                }
+
+                //检查是否有设置EL表达式
+                if (!string.IsNullOrEmpty(item.CallbackEL))
+                {
+                    var elResult = InvokeSpringElCondition(item.CallbackEL, result, context, new Dictionary<string, object> { { "resultBody", result } });
+                    if (!elResult)
+                    {
+                        throw new HttpStatusCodeException(item.CallbackEL, result);
+                    }
+                    RunWithTry(() => context.WriteLine($"【{Strings.CallbackELExcuteResult}:Ok 】" + item.CallbackEL));
                 }
 
                 RunWithTry(() => context.WriteLine($"{Strings.JobResult}:{result}"));
                 logList.Add($"{Strings.JobResult}:{result}");
                 RunWithTry(() => context.WriteLine($"{Strings.JobEnd}:{DateTime.Now:yyyy-MM-dd HH:mm:ss}"));
                 logList.Add($"{Strings.JobEnd}:{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                if (parentJob != null) RunWithTry(() => context.WriteLine($"【{Strings.CallbackSuccess}】[{item.CallbackRoot}]"));
+
                 //到这里查看是否有 子Job
                 if (item.Success != null)
                 {
-                    item.Cron = result;
+                    item.Cron = result;//父job的执行结果
+                    item.Success.CallbackRoot = item.CallbackRoot + ".Success";
                     return Run(item.Success, context, logList, item);
                 }
 
@@ -201,16 +243,25 @@ namespace Hangfire.HttpJob.Server
             }
             catch (Exception e)
             {
-                if (parentJob==null) throw;
-                
+                if (parentJob == null) throw;
+
                 RunWithTry(() => context.SetTextColor(ConsoleTextColor.Red));
                 Logger.ErrorException("HttpJob.Excute=>" + item, e);
-                RunWithTry(() => context.WriteLine(e.ToString()));
-                
+                RunWithTry(() => context.WriteLine($"【{Strings.CallbackFail}】[{item.CallbackRoot}]"));
+                if (e is HttpStatusCodeException exception && exception.IsEl)
+                {
+                    RunWithTry(() => context.WriteLine($"【{Strings.CallbackELExcuteResult}:Fail 】" + exception.El));
+                }
+                else
+                {
+                    RunWithTry(() => context.WriteLine(e.ToString()));
+                }
+
                 //到这里查看是否有 子Job
                 if (item.Fail != null)
                 {
-                    item.Cron = e.Message;
+                    item.Cron = e.Message;//父job的执行异常堆栈
+                    item.Fail.CallbackRoot = item.CallbackRoot + ".Fail";
                     return Run(item.Fail, context, logList, item);
                 }
                 return false;
@@ -258,10 +309,6 @@ namespace Hangfire.HttpJob.Server
         #endregion
 
         #region Private
-
-        private static void Complete()
-        {
-        }
 
         private static void SendSuccessMail(HttpJobItem item, string result)
         {
@@ -337,7 +384,7 @@ namespace Hangfire.HttpJob.Server
             return v.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");
         }
 
-        private static HttpRequestMessage PrepareHttpRequestMessage(HttpJobItem item, PerformContext context)
+        private static HttpRequestMessage PrepareHttpRequestMessage(HttpJobItem item, PerformContext context, HttpJobItem parentJob = null)
         {
             var request = new HttpRequestMessage(new HttpMethod(item.Method), item.Url);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(item.ContentType));
@@ -345,9 +392,22 @@ namespace Hangfire.HttpJob.Server
             {
                 if (!string.IsNullOrEmpty(item.Data))
                 {
-                    //var bytes = Encoding.UTF8.GetBytes(item.Data);
-                    request.Content = new StringContent(item.Data, Encoding.UTF8, item.ContentType);
-                    //request.Content = new ByteArrayContent(bytes, 0, bytes.Length);
+                    var replaceData = placeHolderCheck(item.Data, parentJob == null ? null : new Dictionary<string, object> { { "parent", parentJob.Cron } });
+
+                    if (replaceData.Item2 != null)
+                    {
+                        RunWithTry(() => context.WriteLine($"【{Strings.ReplacePlaceHolder}】Error:"));
+                        RunWithTry(() => context.WriteLine(replaceData.Item2));
+                        request.Content = new StringContent(item.Data, Encoding.UTF8, item.ContentType);
+                    }
+                    else
+                    {
+                        if (item.Data.Contains("#{") || item.Data.Contains("${"))
+                        {
+                            RunWithTry(() => context.WriteLine($"【{Strings.ReplacePlaceHolder}】" + replaceData));
+                        }
+                        request.Content = new StringContent(replaceData.Item1, Encoding.UTF8, item.ContentType);
+                    }
                 }
             }
 
@@ -438,7 +498,7 @@ namespace Hangfire.HttpJob.Server
                 {
                     HashKey = $"console:refs:{consoleValue}",
                     SetKey = $"console:{consoleValue}",
-                    StartTime = (DateTime?) dateValue ?? DateTime.Now
+                    StartTime = (DateTime?)dateValue ?? DateTime.Now
                 };
             }
             catch (Exception)
@@ -447,6 +507,151 @@ namespace Hangfire.HttpJob.Server
             }
         }
 
+
+        #region PlaceHolder
+
+        private static (string, Exception) placeHolderCheck(string content, Dictionary<string, object> param)
+        {
+            try
+            {
+                var jsonFile = new FileInfo(HangfireHttpJobOptions.GlobalSettingJsonFilePath);
+                if (jsonFile.Exists && (_appJsonLastWriteTime == null || _appJsonLastWriteTime != jsonFile.LastWriteTime))
+                {
+                    _appJsonLastWriteTime = jsonFile.LastWriteTime;
+                    try
+                    {
+                        _appsettingsJson = JsonConvert.DeserializeObject<Dictionary<string, object>>(File.ReadAllText(jsonFile.FullName));
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.WarnException($"HangfireHttpJobOptions.GlobalSettingJsonFilePath read fail", e);
+                    }
+                }
+
+
+                //先把 ${} 的 placehoder 全部替换掉
+                var parameterValue = ResolveEmbeddedValue(content, "${", ResolvePlaceholder);
+
+
+                if (param != null)
+                {
+                    var div = new Dictionary<string, object>(_appsettingsJson);
+                    foreach (var keyValuePair in param)
+                    {
+                        if (div.ContainsKey(keyValuePair.Key))
+                        {
+                            div[keyValuePair.Key] = keyValuePair.Value;
+                            continue;
+                        }
+                        div.Add(keyValuePair.Key, keyValuePair.Value);
+                    }
+                    var parameterValue2 = ResolveEmbeddedValue(parameterValue, "#{", (str) => ResolveSpringElPlaceholder(str, div));
+                    return (parameterValue2, null);
+                }
+
+                var parameterValue22 = ResolveEmbeddedValue(parameterValue, "#{", (str) => ResolveSpringElPlaceholder(str, _appsettingsJson));
+                return (parameterValue22, null);
+            }
+            catch (Exception ex)
+            {
+                return (null, ex);
+            }
+        }
+
+        /// <summary>
+        /// 替换当前的配置文件
+        /// </summary>
+        /// <param name="strVal"></param>
+        /// <param name="startPrefix"></param>
+        /// <param name="func"></param>
+        /// <returns></returns>
+        private static string ResolveEmbeddedValue(string strVal, string startPrefix, Func<string, string> func)
+        {
+            string DefaultPlaceholderPrefix = startPrefix;
+            string DefaultPlaceholderSuffix = "}";
+
+            int startIndex = strVal.IndexOf(DefaultPlaceholderPrefix, StringComparison.Ordinal);
+            while (startIndex != -1)
+            {
+                int endIndex = strVal.IndexOf(DefaultPlaceholderSuffix, startIndex + DefaultPlaceholderPrefix.Length, StringComparison.Ordinal);
+                if (endIndex != -1)
+                {
+                    int pos = startIndex + DefaultPlaceholderPrefix.Length;
+                    string placeholder = strVal.Substring(pos, endIndex - pos);
+                    string resolvedValue = func(placeholder);
+                    if (resolvedValue != null)
+                    {
+                        strVal = strVal.Substring(0, startIndex) + resolvedValue.Replace("\"", "\"\"").Replace("\r\n", "").Replace("\r", "").Replace("\n", "") + strVal.Substring(endIndex + 1);
+                        startIndex = strVal.IndexOf(DefaultPlaceholderPrefix, startIndex + resolvedValue.Length, StringComparison.Ordinal);
+                    }
+                    else
+                    {
+                        return strVal;
+                    }
+                }
+                else
+                {
+                    startIndex = -1;
+                }
+            }
+            return strVal;
+        }
+
+        /// <summary>
+        /// 运行SpringEl表达式
+        /// </summary>
+        /// <param name="placeholder"></param>
+        /// <returns></returns>
+        private static string ResolvePlaceholder(string placeholder)
+        {
+
+            _appsettingsJson.TryGetValue(placeholder, out var propertyValue);
+
+            if (propertyValue == null)
+            {
+                propertyValue = Environment.GetEnvironmentVariable(placeholder);
+            }
+            return propertyValue?.ToString();
+        }
+
+
+        private static string ResolveSpringElPlaceholder(string placeholder, Dictionary<string, object> param)
+        {
+            var parameterValue = ExpressionEvaluator.GetValue(null, placeholder, param);
+            return parameterValue.ToString();
+        }
+
+
+        /// <summary>
+        /// 用EL表达式动态判断是否执行成功
+        /// </summary>
+        /// <returns></returns>
+        private static bool InvokeSpringElCondition(string placeholder,string result, PerformContext context,Dictionary<string, object> param)
+        {
+            try
+            {
+                try
+                {
+                    param["result"] = JsonConvert.DeserializeObject<ExpandoObject>(result);
+                }
+                catch (Exception)
+                {
+                    //ignore
+                }
+
+                var parameterValue = ExpressionEvaluator.GetValue(null, placeholder, param);
+               
+                return (bool)parameterValue;
+            }
+            catch (Exception e)
+            {
+                context.WriteLine($"【{Strings.CallbackELExcuteError}】" + placeholder);
+                context.WriteLine(e);
+                return false;
+            }
+        }
+
+        #endregion
 
         private static T RunWithTry<T>(Func<T> action)
         {
