@@ -7,7 +7,7 @@
         {
           "UserName": "root",
           "Pwd": "BFE67654BB270EBB76DE3BF2C2F8A209572333E82902C39EEEFB1205A2AA2B01",
-          "Host": "47.254.184.70",
+          "Host": "47.254.173.216",
           "NickName": "欧洲",
           "IIsFireUrl": null,
           "DockerFireUrl": "",
@@ -36,13 +36,15 @@
     "LastEnvName": "欧洲",
     "RemoveDaysFromPublished": "10",
     "Volume": "/opt/hangfire/logs:/publish/Logs",
+    "Other": "",
     "EnvPairList": [
       {
         "EnvName": "欧洲",
         "ConfigName": null,
         "DockerPort": "80:5000",
         "DockerEnvName": "",
-        "DockerVolume": "/opt/hangfire/logs:/publish/Logs"
+        "DockerVolume": "/opt/hangfire/logs:/publish/Logs",
+        "DockerOther": ""
       }
     ]
   }
